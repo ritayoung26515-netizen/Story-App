@@ -1,5 +1,15 @@
-import React, { useRef, useState } from 'react';
-import { Download, FolderPlus, Trash2, Upload, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Download,
+  FolderPlus,
+  KeyRound,
+  Trash2,
+  Upload,
+  X,
+  Check,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import type { StoryProject } from '../types/story';
 import {
   buildMarkdownExport,
@@ -8,6 +18,13 @@ import {
   migrateProject,
 } from '../utils/storage';
 import { PWAInstallPanel } from './PWAInstallBanner';
+import {
+  getGeminiApiKey,
+  getPrivateServerUrl,
+  hasGeminiApiKey,
+  saveGeminiApiKey,
+  savePrivateServerUrl,
+} from '../utils/api';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -41,7 +58,37 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Settings
+  const [geminiKey, setGeminiKey] = useState('');
+  const [serverUrl, setServerUrl] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+  const [keySaved, setKeySaved] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setGeminiKey(getGeminiApiKey());
+    setServerUrl(getPrivateServerUrl());
+    setKeySaved(hasGeminiApiKey());
+    setSettingsMsg(null);
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const handleSaveSettings = () => {
+    const keyResult = saveGeminiApiKey(geminiKey);
+    const urlResult = savePrivateServerUrl(serverUrl);
+    if (!keyResult.ok) {
+      setSettingsMsg(keyResult.error || '儲存 API Key 失敗');
+      return;
+    }
+    if (!urlResult.ok) {
+      setSettingsMsg(urlResult.error || '伺服器網址格式錯誤');
+      return;
+    }
+    setKeySaved(hasGeminiApiKey());
+    setSettingsMsg('已儲存。API Key 只存在本機，不會上傳到 GitHub。');
+  };
 
   const handleExportMarkdown = () => {
     const md = buildMarkdownExport(
@@ -96,74 +143,145 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-modal-title"
     >
-      <div className="w-full max-w-2xl rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-elevated)] p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-[var(--border-hairline)] pb-4">
+      <div className="w-full max-w-lg sm:max-w-2xl rounded-t-2xl sm:rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-elevated)] p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-[var(--border-hairline)] pb-3">
           <h2
             id="export-modal-title"
-            className="font-display text-2xl font-semibold text-[var(--text-primary)]"
+            className="font-display text-xl sm:text-2xl font-semibold text-[var(--text-primary)]"
           >
-            書稿匯出與多部作品切換
+            設定與作品
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="關閉視窗"
-            className="p-1.5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+            aria-label="關閉"
+            className="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Export Active Manuscript */}
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium text-[var(--text-secondary)]">
-              匯出當前手稿：《{activeProject.title}》
-            </p>
-            <select
-              aria-label="選擇匯出結局分支"
-              value={exportBranchId}
-              onChange={(e) => setExportBranchId(e.target.value)}
-              className="rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-1 text-xs text-[var(--text-primary)]"
-            >
-              <option value="all">全部章節與所有平行結局</option>
-              {activeProject.branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  單獨匯出路線：[{b.code}] {b.title}
-                </option>
-              ))}
-            </select>
+        {/* Gemini API Key — primary for private phone use */}
+        <section className="space-y-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-4">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-[var(--accent-primary)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+              Gemini API Key
+            </h3>
+            {keySaved && (
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                <Check className="h-3 w-3" /> 已設定
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+            私人使用：Key 只存在這台手機的本機儲存，不會寫進 GitHub。從{' '}
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noreferrer"
+              className="underline text-[var(--accent-primary)]"
+            >
+              Google AI Studio
+            </a>{' '}
+            建立後貼上即可。
+          </p>
+          <div className="relative">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="貼上 AIza... 開頭的 Key"
+              autoComplete="off"
+              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2.5 pr-10 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-[var(--text-secondary)] cursor-pointer"
+              aria-label={showKey ? '隱藏' : '顯示'}
+            >
+              {showKey ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] text-[var(--text-secondary)]">
+              私人伺服器網址（選填，留空則用同網域 /api）
+            </label>
+            <input
+              type="url"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder="https://你的後端.onrender.com"
+              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            className="w-full rounded-lg bg-[var(--accent-primary)] px-4 py-2.5 text-sm font-medium text-stone-100 hover:bg-[var(--accent-hover)] cursor-pointer"
+          >
+            儲存設定
+          </button>
+          {settingsMsg && (
+            <p className="text-[11px] text-emerald-400/90">{settingsMsg}</p>
+          )}
+        </section>
+
+        {/* Export */}
+        <section className="space-y-3">
+          <p className="text-xs font-medium text-[var(--text-secondary)]">
+            匯出《{activeProject.title}》
+          </p>
+          <select
+            aria-label="選擇匯出結局分支"
+            value={exportBranchId}
+            onChange={(e) => setExportBranchId(e.target.value)}
+            className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 text-xs text-[var(--text-primary)]"
+          >
+            <option value="all">全部章節與所有平行結局</option>
+            {activeProject.branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                [{b.code}] {b.title}
+              </option>
+            ))}
+          </select>
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleExportMarkdown}
-              className="flex items-center justify-center gap-2 rounded-md bg-[var(--accent-primary)] px-4 py-2.5 text-xs sm:text-sm font-medium text-stone-100 hover:bg-[var(--accent-hover)] cursor-pointer transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 py-2.5 text-xs font-medium text-stone-100 hover:bg-[var(--accent-hover)] cursor-pointer"
             >
-              <Download className="h-4 w-4" />
-              下載手稿 (.md)
+              <Download className="h-3.5 w-3.5" />
+              下載 .md
             </button>
             <button
               type="button"
               onClick={handleExportJson}
-              className="flex items-center justify-center gap-2 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-4 py-2.5 text-xs sm:text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)] cursor-pointer transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2.5 text-xs font-medium text-[var(--text-primary)] cursor-pointer"
             >
-              <Download className="h-4 w-4" />
-              備份完整設定、關係網與記憶 (.json)
+              <Download className="h-3.5 w-3.5" />
+              備份 .json
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Project Switcher */}
-        <div className="space-y-3 border-t border-[var(--border-hairline)] pt-5">
+        {/* Projects */}
+        <section className="space-y-3 border-t border-[var(--border-hairline)] pt-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-[var(--text-secondary)]">
-              已儲存的小說專案（自動儲存於本機瀏覽器）
+              本機專案
             </p>
             <input
               ref={fileInputRef}
@@ -175,10 +293,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               <Upload className="h-3.5 w-3.5" />
-              匯入 JSON 備份
+              匯入
             </button>
           </div>
 
@@ -186,7 +304,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <p className="text-xs text-rose-400">{importError}</p>
           )}
 
-          <div className="divide-y divide-[var(--border-hairline)] rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
+          <div className="divide-y divide-[var(--border-hairline)] rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
             {projects.map((proj) => {
               const isCurrent = proj.id === activeProject.id;
               const totalWords = proj.chapters.reduce(
@@ -197,7 +315,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               return (
                 <div
                   key={proj.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
+                  className="flex items-center justify-between gap-2 px-3 py-3"
                 >
                   <button
                     type="button"
@@ -208,19 +326,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     className="flex-1 text-left min-w-0 cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-display text-lg font-semibold text-[var(--text-primary)] truncate">
+                      <span className="font-display text-base font-semibold text-[var(--text-primary)] truncate">
                         {proj.title}
                       </span>
                       {isCurrent && (
-                        <span className="text-xs text-[var(--accent-primary)]">
-                          · 編輯中
+                        <span className="text-[10px] text-[var(--accent-primary)] shrink-0">
+                          編輯中
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[var(--text-secondary)] font-mono-num">
-                      {proj.characters.length} 主角 ·{' '}
-                      {proj.supportingCharacters.length} 配角 ·{' '}
-                      {proj.branches.length} 條線 · {totalWords} 字
+                    <p className="text-[11px] text-[var(--text-secondary)]">
+                      {proj.characters.length} 主角 · {proj.branches.length} 線 ·{' '}
+                      {totalWords} 字
                     </p>
                   </button>
 
@@ -229,7 +346,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                       type="button"
                       onClick={() => onDeleteProject(proj.id)}
                       title="刪除專案"
-                      className="p-1.5 text-[var(--text-secondary)] hover:text-rose-400 cursor-pointer shrink-0"
+                      className="p-2 text-[var(--text-secondary)] hover:text-rose-400 cursor-pointer shrink-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -238,9 +355,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               );
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Create New Novel */}
+        {/* New project — compact */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -249,63 +366,47 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             setNewProjectTitle('');
             onClose();
           }}
-          className="space-y-3 border-t border-[var(--border-hairline)] pt-5"
+          className="space-y-2 border-t border-[var(--border-hairline)] pt-4"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[var(--text-secondary)]">
-              開立新小說專案（選擇底版）
-            </span>
-            <div className="flex flex-wrap items-center gap-1 p-1 rounded bg-[var(--bg-surface)] border border-[var(--border-hairline)]">
+          <p className="text-xs font-medium text-[var(--text-secondary)]">
+            新建專案
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['lengye_emma', '冷夜紫'],
+                ['literary', '文學'],
+                ['game_dungeon', '副本'],
+              ] as const
+            ).map(([id, label]) => (
               <button
+                key={id}
                 type="button"
-                onClick={() => setNewProjectTemplate('lengye_emma')}
-                className={`px-2.5 py-1 text-xs rounded cursor-pointer ${
-                  newProjectTemplate === 'lengye_emma'
-                    ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
+                onClick={() => setNewProjectTemplate(id)}
+                className={`px-2.5 py-1 text-[11px] rounded-full cursor-pointer ${
+                  newProjectTemplate === id
+                    ? 'bg-[var(--accent-primary)] text-stone-100'
+                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-hairline)]'
                 }`}
               >
-                冷夜紫 Emma 範本
+                {label}
               </button>
-              <button
-                type="button"
-                onClick={() => setNewProjectTemplate('literary')}
-                className={`px-2.5 py-1 text-xs rounded cursor-pointer ${
-                  newProjectTemplate === 'literary'
-                    ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                文學 / 寫實幻想
-              </button>
-              <button
-                type="button"
-                onClick={() => setNewProjectTemplate('game_dungeon')}
-                className={`px-2.5 py-1 text-xs rounded cursor-pointer ${
-                  newProjectTemplate === 'game_dungeon'
-                    ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-secondary)]'
-                }`}
-              >
-                遊戲副本計分範本
-              </button>
-            </div>
+            ))}
           </div>
-
-          <div className="flex gap-2.5">
+          <div className="flex gap-2">
             <input
               type="text"
               value={newProjectTitle}
               onChange={(e) => setNewProjectTitle(e.target.value)}
-              placeholder="輸入新小說書名……"
-              className="flex-1 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3.5 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
+              placeholder="書名……"
+              className="flex-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
             />
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-4 py-2 text-xs sm:text-sm font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)] cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] cursor-pointer shrink-0"
             >
               <FolderPlus className="h-4 w-4" />
-              建立新作品
+              建立
             </button>
           </div>
         </form>
