@@ -15,6 +15,7 @@ import {
   type StoryProject,
 } from '../types/story';
 import { getBranchLineageIds } from '../utils/storage';
+import { apiUrl } from '../utils/api';
 
 interface MemoryVaultViewProps {
   project: StoryProject;
@@ -148,7 +149,7 @@ export const MemoryVaultView: React.FC<MemoryVaultViewProps> = ({
     setIsSyncing(true);
     setSyncMessage(null);
     try {
-      const res = await fetch('/api/story/extract-memory', {
+      const res = await fetch(apiUrl('/api/story/extract-memory'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
+import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -11,6 +13,7 @@ import {
   Type,
 } from '@google/genai';
 import type {
+  ChapterSensoryMarkers,
   ContentSettings,
   DungeonInstance,
   DungeonScoreState,
@@ -27,7 +30,7 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const MODEL_NAME = 'gemini-4-hydrogen';
 
 function getAiClient(): GoogleGenAI {
@@ -240,6 +243,35 @@ function describeDarknessLevel(level: ContentSettings['darknessLevel']): string 
     case 'abyss':
       return '【整體敘事暗度：深淵暴力與毀滅美學】不迴避殘酷、病態執念、心理操控、傷痛與生存威脅，直面毀滅與創傷的重量，絕不說教。';
   }
+}
+
+const SENSORY_TAG_LABELS: Record<string, string> = {
+  erotic: '情慾官能（強化肢體溫度、喘息、肌膚觸感與心理沉淪張力）',
+  violence: '暴力血腥（直寫肢體衝擊、痛覺、流血與生死危機壓迫）',
+  dark_psych: '暗黑心理（深化偏執佔有、心理試探與窒息感）',
+  logic_noir: '推理冷冽（保持冷酷邏輯推演、規則拆解與時間差對位）',
+  tender: '溫存餘韻（聚焦守護、安撫與克制的溫柔情感）',
+};
+
+function formatChapterSensoryMarkers(
+  markers?: ChapterSensoryMarkers
+): string {
+  if (!markers) return '';
+  const tagLines = (markers.tags || []).map(
+    (t) => SENSORY_TAG_LABELS[t] || t
+  );
+  if (
+    tagLines.length === 0 &&
+    markers.sensualIntensity < 40 &&
+    markers.violenceIntensity < 40
+  ) {
+    return '';
+  }
+  return `\n【本章節「感官尺度儀表板」專屬標記】
+- 標記尺度：${tagLines.length > 0 ? tagLines.join('；') : '標準均衡'}
+- 情慾官能張力強度：${markers.sensualIntensity}/100
+- 暴力與壓迫衝擊強度：${markers.violenceIntensity}/100
+請在符合角色人設鐵則的前提下，讓本章正文的感官比重、句式節奏與張力濃度精準貼合上述尺度指標！`;
 }
 
 function filterChronologicalBranchMemories(params: {
@@ -536,6 +568,37 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '5mb' }));
 
+  const allowedOrigins = new Set<string>([
+    'https://localhost',
+    'http://localhost',
+    'capacitor://localhost',
+    ...(process.env.ALLOWED_ORIGIN
+      ? process.env.ALLOWED_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+      : []),
+  ]);
+
+  app.use('/api', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      ok: true,
+      hasAiKey: Boolean(process.env.GEMINI_API_KEY),
+    });
+  });
+
   // 1. Streaming literary prose continuation / generation
   app.post('/api/story/generate-stream', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -565,6 +628,7 @@ async function startServer() {
         previousChapterSummary,
         direction,
         targetLengthHint,
+        chapterSensoryMarkers,
       } = req.body;
 
       const activeDungeon =
@@ -597,11 +661,13 @@ async function startServer() {
       const lengthGuide =
         targetLengthHint || '約 600 至 900 字，完整推進這一場戲的質感與邏輯張力';
 
+      const sensoryBlock = formatChapterSensoryMarkers(chapterSensoryMarkers);
+
       const prompt = `【當前章節資訊】
 第 ${chapterNumber} 章：《${chapterTitle}》
 時序位置：#${timelineOrder || chapterNumber * 10}（${timelineLabel || '未標註'}）
 章節大綱/核心衝突：${chapterSummary || '依既有情節自然推進'}
-${previousChapterSummary ? `上一章前情提要：${previousChapterSummary}` : ''}
+${previousChapterSummary ? `上一章前情提要：${previousChapterSummary}` : ''}${sensoryBlock}
 
 【本章已寫出的最新段落（請無縫銜接其語氣、空間位置、分數與道具狀態）】
 ${recentTail ? `---\n${recentTail}\n---` : '（本章尚未寫出開頭，請直接從極具畫面感與張力的第一句落筆）'}
@@ -674,6 +740,7 @@ ${direction?.trim() ? direction.trim() : '嚴守既有設定與推理邏輯，�
         surroundingContext,
         mode,
         customNote,
+        chapterSensoryMarkers,
       } = req.body as {
         projectTitle: string;
         world: WorldSettings;
@@ -693,6 +760,7 @@ ${direction?.trim() ? direction.trim() : '嚴守既有設定與推理邏輯，�
         surroundingContext?: string;
         mode: RewriteMode;
         customNote?: string;
+        chapterSensoryMarkers?: ChapterSensoryMarkers;
       };
 
       if (!selectedText?.trim()) {
@@ -736,9 +804,11 @@ ${direction?.trim() ? direction.trim() : '嚴守既有設定與推理邏輯，�
           '保留原本發生的外部事件與道具/分數狀態，徹底改寫為當前指定主角的限知主觀視角，注入其獨有感官焦點與人設口吻。',
       };
 
+      const sensoryBlock = formatChapterSensoryMarkers(chapterSensoryMarkers);
+
       const prompt = `【潤飾任務】
 ${modeInstructionMap[mode] || modeInstructionMap.polish}
-${customNote?.trim() ? `\n【作者補充要求】${customNote.trim()}` : ''}
+${customNote?.trim() ? `\n【作者補充要求】${customNote.trim()}` : ''}${sensoryBlock}
 
 【前後文參考（僅供銜接語氣，不要重複輸出）】
 ${surroundingContext || '（無）'}
@@ -1158,21 +1228,32 @@ ${character.hasDarkSide ? `目前黑暗面構想：${character.darkShadow}` : ''
     }
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  const httpServer = http.createServer(app);
+  const distPath = path.resolve(__dirname, 'dist');
+  const useProdDist =
+    process.env.NODE_ENV === 'production' ||
+    (process.env.npm_lifecycle_event === 'start' && fs.existsSync(distPath));
+
+  if (!useProdDist) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr:
+          process.env.DISABLE_HMR === 'true'
+            ? false
+            : { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Ink & Chiaroscuro server running on http://0.0.0.0:${PORT}`);
   });
 }

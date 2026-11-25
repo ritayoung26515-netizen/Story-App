@@ -26,6 +26,7 @@ import {
 } from '../types/story';
 import { RelationshipGraph } from './RelationshipGraph';
 import { ProtagonistQuickRefTable } from './ProtagonistQuickRefTable';
+import { apiUrl } from '../utils/api';
 
 interface CastAndWorldViewProps {
   project: StoryProject;
@@ -194,7 +195,7 @@ export const CastAndWorldView: React.FC<CastAndWorldViewProps> = ({
     setIsDeepening(true);
     setDeepenError(null);
     try {
-      const res = await fetch('/api/story/deepen-character', {
+      const res = await fetch(apiUrl('/api/story/deepen-character'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

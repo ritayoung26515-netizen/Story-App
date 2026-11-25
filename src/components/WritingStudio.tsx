@@ -43,7 +43,10 @@ import {
   getChaptersForBranchRoute,
   getChronologicalMemoriesForContext,
 } from '../utils/storage';
+import { apiUrl } from '../utils/api';
+import { resolveSensoryTypography } from '../utils/sensoryTypography';
 import { ProtagonistQuickRefTable } from './ProtagonistQuickRefTable';
+import { SensoryScaleDashboard } from './SensoryScaleDashboard';
 
 interface WritingStudioProps {
   project: StoryProject;
@@ -286,7 +289,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
     setIsExtracting(true);
     setExtractNotice(null);
     try {
-      const res = await fetch('/api/story/extract-memory', {
+      const res = await fetch(apiUrl('/api/story/extract-memory'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -412,7 +415,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
     setAiError(null);
     setConsistencyReport(null);
     try {
-      const res = await fetch('/api/story/check-consistency', {
+      const res = await fetch(apiUrl('/api/story/check-consistency'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -460,7 +463,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
 
     let accumulated = '';
     try {
-      const res = await fetch('/api/story/generate-stream', {
+      const res = await fetch(apiUrl('/api/story/generate-stream'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -486,6 +489,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
           previousChapterSummary: previousChapter?.summary || '',
           direction,
           targetLengthHint: lengthHint,
+          chapterSensoryMarkers: activeChapter.sensoryMarkers,
         }),
       });
 
@@ -556,7 +560,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
         contextEnd
       );
 
-      const res = await fetch('/api/story/rewrite', {
+      const res = await fetch(apiUrl('/api/story/rewrite'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -577,6 +581,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
           selectedText: selectionRange.text,
           surroundingContext,
           mode,
+          chapterSensoryMarkers: activeChapter.sensoryMarkers,
         }),
       });
       const data = await res.json();
@@ -611,6 +616,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
   const showLeft = !focusMode && leftOpen;
   const showRight = !focusMode && rightOpen;
   const isGameMode = project.world.mode === 'game_dungeon';
+  const sensoryProfile = resolveSensoryTypography(activeChapter.sensoryMarkers);
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col lg:flex-row min-h-[calc(100vh-57px)]">
@@ -928,15 +934,20 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
                 </select>
               </div>
 
-              <input
-                type="text"
-                value={activeChapter.title}
-                onChange={(e) =>
-                  onUpdateChapter(activeChapter.id, { title: e.target.value })
-                }
-                placeholder="輸入章節標題……"
-                className="w-full bg-transparent font-display text-2xl sm:text-3xl font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none"
-              />
+              <div className="flex items-center justify-between gap-3">
+                <input
+                  type="text"
+                  value={activeChapter.title}
+                  onChange={(e) =>
+                    onUpdateChapter(activeChapter.id, { title: e.target.value })
+                  }
+                  placeholder="輸入章節標題……"
+                  className={`flex-1 min-w-0 bg-transparent ${sensoryProfile.titleClassName} text-2xl sm:text-3xl font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none transition-all duration-200`}
+                />
+                <span className="hidden md:inline-block shrink-0 text-[11px] text-[var(--text-secondary)] border border-[var(--border-hairline)] rounded px-2 py-0.5 bg-[var(--bg-surface)]">
+                  {sensoryProfile.styleName.split('・')[0]}
+                </span>
+              </div>
 
               <input
                 type="text"
@@ -1014,7 +1025,9 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
                     </button>
                   </div>
                 </div>
-                <p className="font-manuscript text-base leading-[1.9] text-[var(--text-primary)] whitespace-pre-wrap">
+                <p
+                  className={`${sensoryProfile.proseClassName} text-[var(--text-primary)] whitespace-pre-wrap transition-all duration-200`}
+                >
                   {rewritePreview.rewritten}
                 </p>
               </div>
@@ -1030,7 +1043,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
               onKeyUp={handleTextSelection}
               placeholder="在此開始書寫，或在下方輸入場記指令讓 AI 嚴守設定、邏輯、關係網與副本分數續寫……"
               rows={18}
-              className="w-full min-h-[400px] resize-y bg-transparent font-manuscript text-[17px] leading-[1.9] tracking-[0.01em] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
+              className={`w-full min-h-[400px] resize-y bg-transparent ${sensoryProfile.proseClassName} text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none transition-all duration-200`}
             />
 
             {(isGenerating || streamDraft) && (
@@ -1067,7 +1080,9 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="font-manuscript text-[17px] leading-[1.9] text-[var(--text-primary)] whitespace-pre-wrap">
+                <div
+                  className={`${sensoryProfile.proseClassName} text-[var(--text-primary)] whitespace-pre-wrap transition-all duration-200`}
+                >
                   {streamDraft || '正在核對角色關係網、副本積分與設定鎖定……'}
                 </div>
               </div>
@@ -1152,6 +1167,16 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
       {/* Right Rail: Quick Ref Table + Live Dungeon Scoreboard, POV Invariants, Consistency Audit & Chronological Memories */}
       {showRight && (
         <aside className="w-full lg:w-88 shrink-0 border-t lg:border-t-0 lg:border-l border-[var(--border-hairline)] bg-[var(--bg-surface)] flex flex-col">
+          <SensoryScaleDashboard
+            chapterTitle={activeChapter.title}
+            markers={activeChapter.sensoryMarkers}
+            onChange={(nextMarkers) =>
+              onUpdateChapter(activeChapter.id, {
+                sensoryMarkers: nextMarkers,
+              })
+            }
+          />
+
           {/* Right Rail Tab Switch */}
           <div className="grid grid-cols-2 border-b border-[var(--border-hairline)] bg-[var(--bg-canvas)]/50">
             <button

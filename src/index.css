@@ -51,6 +51,87 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Adaptive Sensory Scale Typography Profiles */
+.prose-profile-standard_serif {
+  font-family: "Noto Serif TC", "Songti TC", "Cormorant Garamond", Georgia, serif;
+  font-size: 17px;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+.title-profile-standard_serif {
+  font-family: "Cormorant Garamond", "Noto Serif TC", Georgia, serif;
+}
+
+.prose-profile-velvet_wenkai {
+  font-family: "LXGW WenKai TC", "Kaiti TC", "STKaiti", "BiauKai", "Cormorant Garamond", "Noto Serif TC", serif;
+  font-size: 17.5px;
+  line-height: 2.05;
+  letter-spacing: 0.03em;
+  font-weight: 400;
+}
+.title-profile-velvet_wenkai {
+  font-family: "Cormorant Garamond", "LXGW WenKai TC", "Noto Serif TC", serif;
+  font-style: italic;
+}
+
+.prose-profile-razor_sans {
+  font-family: "Noto Sans TC", "PingFang TC", "Plus Jakarta Sans", "Microsoft JhengHei", sans-serif;
+  font-size: 16.5px;
+  line-height: 1.72;
+  letter-spacing: -0.005em;
+  font-weight: 500;
+}
+.title-profile-razor_sans {
+  font-family: "Noto Sans TC", "Plus Jakarta Sans", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.prose-profile-gothic_passion_razor {
+  font-family: "Cormorant Garamond", "Zen Old Mincho", "Noto Serif TC", "Songti TC", serif;
+  font-size: 17.5px;
+  line-height: 1.88;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+.title-profile-gothic_passion_razor {
+  font-family: "Cormorant Garamond", "Zen Old Mincho", "Noto Serif TC", serif;
+  font-style: italic;
+}
+
+.prose-profile-abyss_mincho {
+  font-family: "Zen Old Mincho", "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  font-size: 17px;
+  line-height: 1.84;
+  letter-spacing: 0.005em;
+  font-weight: 500;
+}
+.title-profile-abyss_mincho {
+  font-family: "Zen Old Mincho", "Cormorant Garamond", "Noto Serif TC", serif;
+}
+
+.prose-profile-logic_dossier_sans {
+  font-family: "Plus Jakarta Sans", "Noto Sans TC", "PingFang TC", "JetBrains Mono", sans-serif;
+  font-size: 16px;
+  line-height: 1.78;
+  letter-spacing: 0.015em;
+  font-weight: 400;
+}
+.title-profile-logic_dossier_sans {
+  font-family: "Plus Jakarta Sans", "Noto Sans TC", sans-serif;
+}
+
+.prose-profile-tender_wenkai {
+  font-family: "LXGW WenKai TC", "Kaiti TC", "STKaiti", "Noto Serif TC", serif;
+  font-size: 17px;
+  line-height: 2;
+  letter-spacing: 0.025em;
+  font-weight: 400;
+}
+.title-profile-tender_wenkai {
+  font-family: "LXGW WenKai TC", "Cormorant Garamond", "Noto Serif TC", serif;
+}
+
 /* Custom subtle scrollbars for long-form writing */
 ::-webkit-scrollbar {
   width: 6px;

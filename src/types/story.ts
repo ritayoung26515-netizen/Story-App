@@ -200,6 +200,20 @@ export interface SceneBeat {
   completed: boolean;
 }
 
+export type SensoryTag =
+  | 'erotic'
+  | 'violence'
+  | 'dark_psych'
+  | 'logic_noir'
+  | 'tender';
+
+export interface ChapterSensoryMarkers {
+  tags: SensoryTag[];
+  sensualIntensity: number; // 0-100 情慾張力濃度
+  violenceIntensity: number; // 0-100 暴力與血腥衝擊度
+  autoTypography: boolean; // 是否依標記自動切換手稿字體風格
+}
+
 export interface Chapter {
   id: string;
   number: number;
@@ -208,6 +222,7 @@ export interface Chapter {
   branchId: string;
   dungeonId?: string;
   dungeonScore?: DungeonScoreState;
+  sensoryMarkers?: ChapterSensoryMarkers;
   actTitle: string;
   title: string;
   povCharacterId: string;
