@@ -58,17 +58,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Settings
   const [geminiKey, setGeminiKey] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
   const [keySaved, setKeySaved] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setGeminiKey(getGeminiApiKey());
-    setServerUrl(getPrivateServerUrl());
+    // Only show URL if user previously saved a real one; ignore accidental junk
+    const saved = getPrivateServerUrl();
+    setServerUrl(saved.startsWith('http') ? saved : '');
     setKeySaved(hasGeminiApiKey());
     setSettingsMsg(null);
   }, [isOpen]);
@@ -76,18 +78,41 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   if (!isOpen) return null;
 
   const handleSaveSettings = () => {
-    const keyResult = saveGeminiApiKey(geminiKey);
-    const urlResult = savePrivateServerUrl(serverUrl);
+    const trimmedKey = geminiKey.trim();
+    if (!trimmedKey) {
+      setSettingsMsg('請先貼上 Gemini API Key（AQ. 或 AIza 開頭）。');
+      return;
+    }
+
+    const keyResult = saveGeminiApiKey(trimmedKey);
     if (!keyResult.ok) {
       setSettingsMsg(keyResult.error || '儲存 API Key 失敗');
       return;
     }
-    if (!urlResult.ok) {
-      setSettingsMsg(urlResult.error || '伺服器網址格式錯誤');
-      return;
+
+    // 伺服器網址完全選填：空白或無效時一律清掉，唔阻住儲存 Key
+    const trimmedUrl = serverUrl.trim();
+    if (!trimmedUrl) {
+      savePrivateServerUrl('');
+      setServerUrl('');
+    } else {
+      const urlResult = savePrivateServerUrl(trimmedUrl);
+      if (!urlResult.ok) {
+        // 仍然保存 Key，只提示網址有問題並清空
+        savePrivateServerUrl('');
+        setServerUrl('');
+        setKeySaved(true);
+        setSettingsMsg(
+          'API Key 已儲存成功。伺服器網址格式不正確已忽略（手機私人使用可留空）。'
+        );
+        return;
+      }
     }
-    setKeySaved(hasGeminiApiKey());
-    setSettingsMsg('已儲存。API Key 只存在本機，不會上傳到 GitHub。');
+
+    setKeySaved(true);
+    setSettingsMsg(
+      '已儲存 API Key。手機私人使用唔使填伺服器網址，可直接去寫作頁試「續寫」。'
+    );
   };
 
   const handleExportMarkdown = () => {
@@ -166,7 +191,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
 
-        {/* Gemini API Key — primary for private phone use */}
         <section className="space-y-3 rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-4">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-[var(--accent-primary)]" />
@@ -180,7 +204,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             )}
           </div>
           <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-            私人使用：Key 只存在這台手機的本機儲存，不會寫進 GitHub。從{' '}
+            只需要貼 Gemini Key，唔使填網址。Key 只存在呢部手機。到{' '}
             <a
               href="https://aistudio.google.com/apikey"
               target="_blank"
@@ -189,14 +213,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             >
               Google AI Studio
             </a>{' '}
-            建立後貼上即可。
+            複製（AQ. 或 AIza 開頭都得）。
           </p>
           <div className="relative">
             <input
               type={showKey ? 'text' : 'password'}
               value={geminiKey}
               onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder="貼上 AIza... 開頭的 Key"
+              placeholder="貼上 AQ. 或 AIza 開頭的 Gemini Key"
               autoComplete="off"
               className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2.5 pr-10 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
             />
@@ -214,32 +238,43 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] text-[var(--text-secondary)]">
-              私人伺服器網址（選填，留空則用同網域 /api）
-            </label>
-            <input
-              type="url"
-              value={serverUrl}
-              onChange={(e) => setServerUrl(e.target.value)}
-              placeholder="https://你的後端.onrender.com"
-              className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="text-[11px] text-[var(--text-secondary)] underline cursor-pointer"
+          >
+            {showAdvanced ? '收起進階選項' : '進階：伺服器網址（可留空）'}
+          </button>
+
+          {showAdvanced && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-[var(--text-secondary)]">
+                私人伺服器網址 — 一般用戶請留空，唔使填
+              </label>
+              <input
+                type="text"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                placeholder="留空即可"
+                className="w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
+              />
+            </div>
+          )}
 
           <button
             type="button"
             onClick={handleSaveSettings}
             className="w-full rounded-lg bg-[var(--accent-primary)] px-4 py-2.5 text-sm font-medium text-stone-100 hover:bg-[var(--accent-hover)] cursor-pointer"
           >
-            儲存設定
+            儲存 API Key
           </button>
           {settingsMsg && (
-            <p className="text-[11px] text-emerald-400/90">{settingsMsg}</p>
+            <p className="text-[11px] text-emerald-400/90 whitespace-pre-wrap">
+              {settingsMsg}
+            </p>
           )}
         </section>
 
-        {/* Export */}
         <section className="space-y-3">
           <p className="text-xs font-medium text-[var(--text-secondary)]">
             匯出《{activeProject.title}》
@@ -277,7 +312,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </div>
         </section>
 
-        {/* Projects */}
         <section className="space-y-3 border-t border-[var(--border-hairline)] pt-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-[var(--text-secondary)]">
@@ -357,7 +391,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </div>
         </section>
 
-        {/* New project — compact */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
