@@ -15,7 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Node.js (for Capacitor CLI compatibility)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -27,19 +32,18 @@ jobs:
           java-version: '21'
 
       # v3 is broken (Google removed the old "tools" package).
-      # Use v4 + explicit packages that Capacitor/Gradle need.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Install dependencies
-        run: npm install
+        run: bun install
 
       - name: Build web bundle
         env:
           VITE_API_BASE_URL: ${{ vars.SERVER_URL || '' }}
-        run: npm run build
+        run: bun run build
 
       - name: Prepare Capacitor Android project
         run: |
@@ -57,7 +61,7 @@ jobs:
             }
           }
           EOF
-          npm install --no-save @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          bun add -d @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
           npx cap add android
           npx cap sync android
 
@@ -65,7 +69,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload downloadable APK
         uses: actions/upload-artifact@v4
@@ -73,3 +77,4 @@ jobs:
           name: moying-novel-studio-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+          if-no-files-found: error
