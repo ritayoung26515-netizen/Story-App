@@ -1,24 +1,11 @@
 import React, { useState } from 'react';
-import { Check, Copy, Download, Server, Smartphone, WifiOff } from 'lucide-react';
+import { Check, Copy, Download, KeyRound, Smartphone, WifiOff } from 'lucide-react';
 import { useOnlineStatus, usePWAInstall } from '../hooks/usePWAInstall';
-import {
-  apiUrl,
-  getPrivateServerUrl,
-  savePrivateServerUrl,
-} from '../utils/api';
 
 export const PWAInstallPanel: React.FC = () => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showMobileGuide, setShowMobileGuide] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [serverUrlInput, setServerUrlInput] = useState(() =>
-    getPrivateServerUrl()
-  );
-  const [serverStatus, setServerStatus] = useState<{
-    type: 'idle' | 'ok' | 'error';
-    message: string;
-  }>({ type: 'idle', message: '' });
-  const [isTestingServer, setIsTestingServer] = useState(false);
 
   const handleCopyUrl = async () => {
     try {
@@ -26,46 +13,7 @@ export const PWAInstallPanel: React.FC = () => {
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     } catch {
-      // ignore clipboard restrictions inside sandboxed iframe
-    }
-  };
-
-  const handleSaveAndTestServer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const saved = savePrivateServerUrl(serverUrlInput);
-    if (!saved.ok) {
-      setServerStatus({
-        type: 'error',
-        message: saved.error || '網址格式錯誤',
-      });
-      return;
-    }
-
-    setIsTestingServer(true);
-    setServerStatus({ type: 'idle', message: '' });
-    try {
-      const res = await fetch(apiUrl('/api/health'));
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as { ok?: boolean; hasAiKey?: boolean };
-      if (!data.ok) {
-        throw new Error('伺服器回應異常');
-      }
-      setServerStatus({
-        type: 'ok',
-        message: data.hasAiKey
-          ? '已連線至私人伺服器，且後端 Gemini 金鑰已就緒。'
-          : '已連線至伺服器，但該伺服器環境變數尚未設定 GEMINI_API_KEY。',
-      });
-    } catch {
-      setServerStatus({
-        type: 'error',
-        message:
-          '無法連線至該伺服器，請確認伺服器已啟動、網址正確且允許跨網域存取。',
-      });
-    } finally {
-      setIsTestingServer(false);
+      // ignore clipboard restrictions
     }
   };
 
@@ -75,7 +23,7 @@ export const PWAInstallPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <Smartphone className="h-4 w-4 text-[var(--accent-primary)]" />
           <span className="text-xs font-medium text-[var(--text-primary)]">
-            手機安裝與 GitHub Android APK 私人連線設定
+            手機安裝說明
           </span>
         </div>
         {isInstalled ? (
@@ -86,8 +34,18 @@ export const PWAInstallPanel: React.FC = () => {
       </div>
 
       <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-        專案已內建 PWA 離線寫作與 GitHub Actions 自動編譯 Android APK 工作流。您的所有手稿與角色設定皆僅儲存在手機本機（不公開上傳）。
+        手稿與角色只存在本機。AI 續寫請到本頁最上方貼上 Gemini API Key 並按「儲存
+        API Key」——<strong className="text-[var(--text-primary)]">唔使填任何網址</strong>。
       </p>
+
+      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 flex gap-2">
+        <KeyRound className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+          <span className="text-emerald-400 font-medium">正確做法：</span>
+          向上捲到「Gemini API Key」欄，貼上 AQ. 或 AIza 開頭的 Key，按儲存。不要把 Key
+          填進任何「網址」欄位。
+        </p>
+      </div>
 
       {!isInstalled && (
         <div className="flex flex-wrap items-center gap-2.5">
@@ -109,7 +67,7 @@ export const PWAInstallPanel: React.FC = () => {
           >
             <Smartphone className="h-3.5 w-3.5" />
             {showMobileGuide
-              ? '收合手機安裝步驟'
+              ? '收合安裝步驟'
               : isIOS
                 ? '查看 iPhone / Android 安裝步驟'
                 : '查看手機安裝 / GitHub APK 步驟'}
@@ -139,64 +97,23 @@ export const PWAInstallPanel: React.FC = () => {
         <div className="rounded-md border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-3.5 space-y-2.5 text-xs text-[var(--text-secondary)]">
           <div>
             <p className="font-semibold text-[var(--text-primary)]">
-              方式 A：從 GitHub 下載原生 Android 安裝檔（.apk）
+              方式 A：從 GitHub 下載 Android APK
             </p>
             <p className="mt-0.5 leading-relaxed">
-              1. 將專案推送至您的私人 GitHub 儲存庫後，打開 GitHub 頁面的「Actions」分頁。
-              <br />
-              2. 點選「Build Android APK」完成執行後，在底部 Artifacts 下載「moying-novel-studio-android-apk」並於手機安裝。
+              打開 GitHub → Actions → Build Android APK → 下載 Artifacts 裡的 APK
+              安裝到手機。
             </p>
           </div>
           <div className="pt-2 border-t border-[var(--border-hairline)]">
             <p className="font-semibold text-[var(--text-primary)]">
-              方式 B：透過手機瀏覽器安裝（Chrome / Brave / Safari）
+              方式 B：瀏覽器加到主畫面
             </p>
             <p className="mt-0.5 leading-relaxed">
-              Android（Chrome／Brave）：開啟網址 → 點擊選單（⋮）→「安裝應用程式／加到主畫面」。
-              <br />
-              iPhone / iPad（Safari）：開啟網址 → 點擊「分享」→「加入主畫面」。
+              Android：選單 → 安裝應用程式。iPhone：Safari 分享 → 加入主畫面。
             </p>
           </div>
         </div>
       )}
-
-      <form
-        onSubmit={handleSaveAndTestServer}
-        className="rounded-md border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-3 space-y-2"
-      >
-        <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">
-          <Server className="h-3.5 w-3.5 text-[var(--accent-primary)]" />
-          <span>私人 AI 後端伺服器位址（供獨立 APK 連線使用，網頁版可留空）</span>
-        </div>
-        <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-          為確保金鑰安全，Gemini API 金鑰一律保管於您的私人後端伺服器環境變數（GEMINI_API_KEY），不在手機端輸入或暴露。在獨立 APK 中請填入您私人部署的後端網址：
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <input
-            type="url"
-            value={serverUrlInput}
-            onChange={(e) => setServerUrlInput(e.target.value)}
-            placeholder="例如：https://your-private-server.onrender.com（留空則用目前網域）"
-            className="flex-1 min-w-[200px] rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
-          />
-          <button
-            type="submit"
-            disabled={isTestingServer}
-            className="rounded border border-[var(--border-hairline)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--accent-primary)] cursor-pointer disabled:opacity-50"
-          >
-            {isTestingServer ? '測試中…' : '儲存並測試連線'}
-          </button>
-        </div>
-        {serverStatus.type !== 'idle' && (
-          <p
-            className={`text-[11px] ${
-              serverStatus.type === 'ok' ? 'text-emerald-400' : 'text-rose-400'
-            }`}
-          >
-            {serverStatus.message}
-          </p>
-        )}
-      </form>
     </div>
   );
 };
@@ -254,11 +171,11 @@ export const FloatingInstallPrompt: React.FC = () => {
               於 iPhone / iPad 安裝「墨影手稿」
             </h3>
             <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-              1. 請在 <strong>Safari</strong> 瀏覽器開啟本頁網址。
+              1. 請在 <strong>Safari</strong> 瀏覽器開啟本頁。
               <br />
-              2. 點擊工具列上的 <strong>分享</strong> 圖示。
+              2. 點擊 <strong>分享</strong>。
               <br />
-              3. 選擇 <strong>加入主畫面</strong>，即可像原生 App 一樣全螢幕開啟與離線書寫。
+              3. 選擇 <strong>加入主畫面</strong>。
             </p>
             <button
               type="button"
@@ -281,7 +198,7 @@ export const OfflineIndicator: React.FC = () => {
   return (
     <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-md border border-amber-500/40 bg-[var(--bg-elevated)] px-3 py-2 text-xs text-amber-400 shadow-lg">
       <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      <span>目前為離線狀態・可繼續查閱與編寫手稿（AI 功能需連線）</span>
+      <span>目前為離線狀態・可繼續編寫（AI 需連線）</span>
     </div>
   );
 };
