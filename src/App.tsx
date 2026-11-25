@@ -6,6 +6,10 @@ import { MemoryVaultView } from './components/MemoryVaultView';
 import { ProgressTrackerView } from './components/ProgressTrackerView';
 import { ExportModal } from './components/ExportModal';
 import {
+  FloatingInstallPrompt,
+  OfflineIndicator,
+} from './components/PWAInstallBanner';
+import {
   createBlankProject,
   createLengyeEmmaProject,
   createStarterProject,
@@ -728,6 +732,9 @@ export default function App() {
         onDeleteProject={handleDeleteProject}
         onImportProject={handleImportProject}
       />
+
+      <FloatingInstallPrompt />
+      <OfflineIndicator />
     </div>
   );
 }

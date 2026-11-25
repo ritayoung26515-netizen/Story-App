@@ -7,6 +7,7 @@ import {
   downloadTextFile,
   migrateProject,
 } from '../utils/storage';
+import { PWAInstallPanel } from './PWAInstallBanner';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -308,6 +309,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </button>
           </div>
         </form>
+
+        <PWAInstallPanel />
       </div>
     </div>
   );
