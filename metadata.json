@@ -1,0 +1,6 @@
+{
+  "name": "墨影手稿",
+  "description": "為追求文學質感、感官張力與心理暗湧的小說家打造的長篇創作工作台，支援最多六位主角設定、環境與尺度調校、自動記憶擷取、多視角切換與靈活章節進度追蹤。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

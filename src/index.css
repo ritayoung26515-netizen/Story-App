@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-display: "Cormorant Garamond", "Noto Serif TC", Georgia, serif;
+    --font-serif-body: "Noto Serif TC", "Cormorant Garamond", Georgia, serif;
+    --font-sans: "Plus Jakarta Sans", "Noto Sans TC", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    --bg-canvas: #FAF7F2;
+    --bg-surface: #F2EDE4;
+    --bg-elevated: #FFFFFF;
+    --text-primary: #1B1817;
+    --text-secondary: #625B56;
+    --border-hairline: rgba(27, 24, 23, 0.1);
+    --accent-primary: #881337;
+    --accent-hover: #6E0E2C;
+  }
+
+  .dark {
+    --bg-canvas: #0B0A0D;
+    --bg-surface: #131116;
+    --bg-elevated: #1A171F;
+    --text-primary: #ECE6DE;
+    --text-secondary: #9A918A;
+    --border-hairline: rgba(236, 230, 222, 0.09);
+    --accent-primary: #9F1239;
+    --accent-hover: #BE123C;
+  }
+
+  html,
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    transition: background-color 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-manuscript {
+  font-family: var(--font-serif-body);
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom subtle scrollbars for long-form writing */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(154, 145, 138, 0.25);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 145, 138, 0.45);
+}
