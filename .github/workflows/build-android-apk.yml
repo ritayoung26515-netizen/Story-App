@@ -26,8 +26,12 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # v3 is broken (Google removed the old "tools" package).
+      # Use v4 + explicit packages that Capacitor/Gradle need.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Install dependencies
         run: npm install
@@ -47,6 +51,9 @@ jobs:
             "server": {
               "androidScheme": "https",
               "cleartext": true
+            },
+            "android": {
+              "allowMixedContent": true
             }
           }
           EOF
@@ -58,7 +65,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload downloadable APK
         uses: actions/upload-artifact@v4
