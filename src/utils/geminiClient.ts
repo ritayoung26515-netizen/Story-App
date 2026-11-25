@@ -1,46 +1,120 @@
 /**
  * Direct Gemini REST calls from the app (no backend required).
- * Used when user pastes API key in Settings and has no private server URL.
+ * Supports both legacy AIza... keys and 2026 AQ. authorization keys.
  */
 import { getGeminiApiKey } from './api';
 
-const MODEL = 'gemini-2.0-flash';
+/** Prefer fast free-tier models; try fallbacks if one is unavailable. */
+const MODELS = [
+  'gemini-3.8-flash',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-flash-latest',
+] as const;
 
 function requireKey(): string {
-  const key = getGeminiApiKey();
+  const key = getGeminiApiKey().trim();
   if (!key) {
     throw new Error(
-      '尚未設定 Gemini API Key。請點右上角「設定與作品」，貼上 Key 後儲存。'
+      '尚未設定 Gemini API Key。請點右上角「設定與作品」，貼上 Key 後按儲存。'
     );
   }
   return key;
 }
 
-async function generateText(prompt: string): Promise<string> {
-  const key = requireKey();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+function looksLikeGeminiKey(key: string): boolean {
+  const k = key.trim();
+  return (
+    k.startsWith('AIza') ||
+    k.startsWith('AQ.') ||
+    k.startsWith('AQ') ||
+    k.length >= 20
+  );
+}
+
+async function callGenerateContent(
+  model: string,
+  prompt: string,
+  key: string
+): Promise<{ ok: boolean; text: string; error?: string; status?: number }> {
+  // AQ. keys require x-goog-api-key header (query ?key= often fails for them)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': key,
+    },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.9 },
     }),
   });
-  const data = await res.json();
+
+  let data: {
+    error?: { message?: string; status?: string; code?: number };
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    /* ignore */
+  }
+
   if (!res.ok) {
-    const msg =
+    const raw =
       data?.error?.message ||
       data?.error?.status ||
-      `Gemini 請求失敗 (${res.status})`;
-    throw new Error(msg);
+      `HTTP ${res.status}`;
+    return { ok: false, text: '', error: raw, status: res.status };
   }
+
   const parts = data?.candidates?.[0]?.content?.parts;
-  if (!Array.isArray(parts)) return '';
-  return parts.map((p: { text?: string }) => p.text || '').join('');
+  if (!Array.isArray(parts) || parts.length === 0) {
+    return {
+      ok: false,
+      text: '',
+      error: '模型沒有回傳內容（可能被安全過濾或配額用盡）',
+      status: res.status,
+    };
+  }
+  return {
+    ok: true,
+    text: parts.map((p) => p.text || '').join(''),
+  };
 }
 
-/** Stream-like generation: yields text chunks via callback (simulated from full response for mobile reliability). */
+async function generateText(prompt: string): Promise<string> {
+  const key = requireKey();
+  if (!looksLikeGeminiKey(key)) {
+    throw new Error(
+      '這個 Key 看起來不是 Google Gemini Key。請到 https://aistudio.google.com/apikey 建立（可為 AQ. 或 AIza 開頭）。本 App 不支援 NVIDIA API Key。'
+    );
+  }
+
+  let lastError = 'Gemini 請求失敗';
+  for (const model of MODELS) {
+    const result = await callGenerateContent(model, prompt, key);
+    if (result.ok) return result.text;
+    lastError = result.error || lastError;
+
+    if (
+      result.status === 400 ||
+      result.status === 401 ||
+      result.status === 403
+    ) {
+      break;
+    }
+  }
+
+  const hint =
+    /API_KEY|INVALID|PERMISSION|401|403|UNSUPPORTED|BLOCKED/i.test(lastError)
+      ? '\n\n請確認：\n1) Key 來自 aistudio.google.com/apikey\n2) 已按「儲存設定」\n3) Google Cloud 已啟用 Generative Language API\n4) 本 App 不支援 NVIDIA Key'
+      : '';
+
+  throw new Error(`${lastError}${hint}`);
+}
+
 export async function clientGenerateStream(
   body: Record<string, unknown>,
   onChunk: (text: string) => void,
@@ -52,7 +126,10 @@ export async function clientGenerateStream(
   const chapterNumber = body.chapterNumber ?? 1;
   const chapterTitle = String(body.chapterTitle || '');
   const world = (body.world || {}) as Record<string, string>;
-  const contentSettings = (body.contentSettings || {}) as Record<string, string>;
+  const contentSettings = (body.contentSettings || {}) as Record<
+    string,
+    string
+  >;
   const characters = Array.isArray(body.characters) ? body.characters : [];
   const currentContent = String(body.currentContent || '');
   const direction = String(body.direction || '自然延續情節，保持人設一致');
@@ -86,7 +163,6 @@ ${currentContent.slice(-3000)}
   const full = await generateText(prompt);
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  // Yield in small chunks so UI can update progressively
   const step = 24;
   for (let i = 0; i < full.length; i += step) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -95,7 +171,9 @@ ${currentContent.slice(-3000)}
   }
 }
 
-export async function clientRewrite(body: Record<string, unknown>): Promise<string> {
+export async function clientRewrite(
+  body: Record<string, unknown>
+): Promise<string> {
   const selectedText = String(body.selectedText || '');
   const mode = String(body.mode || 'polish');
   const surroundingContext = String(body.surroundingContext || '');
@@ -114,7 +192,11 @@ export async function clientRewrite(body: Record<string, unknown>): Promise<stri
 
 export async function clientExtractMemory(
   body: Record<string, unknown>
-): Promise<{ newMemories: unknown[]; chapterSummary: string; scoreChanges: unknown[] }> {
+): Promise<{
+  newMemories: unknown[];
+  chapterSummary: string;
+  scoreChanges: unknown[];
+}> {
   const chapterContent = String(body.chapterContent || '');
   const chapterTitle = String(body.chapterTitle || '');
   const chapterNumber = body.chapterNumber ?? '';
