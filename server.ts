@@ -33,8 +33,27 @@ const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT) || 3000;
 const MODEL_NAME = 'gemini-4-hydrogen';
 
-// NOTE: Full literary generation logic continues in the rest of the restored file.
-// Temporary minimal server so the app builds while full logic is restored.
+// Full server restored from commit dd9636c + in-app API key header support.
+// If this file appears truncated in git history, re-copy from artifacts.
+
+const LITERARY_SAFETY_SETTINGS = [
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+];
 
 async function startServer() {
   const app = express();
@@ -55,7 +74,10 @@ async function startServer() {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Gemini-Api-Key');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, X-Gemini-Api-Key'
+      );
     }
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -69,22 +91,42 @@ async function startServer() {
     res.json({
       ok: true,
       hasAiKey: fromHeader || Boolean(process.env.GEMINI_API_KEY),
-      keySource: fromHeader ? 'request' : process.env.GEMINI_API_KEY ? 'env' : 'none',
+      keySource: fromHeader
+        ? 'request'
+        : process.env.GEMINI_API_KEY
+          ? 'env'
+          : 'none',
     });
   });
 
-  // Stub routes so frontend does not 404 while full literary engine is reattached
-  const notReady = (_req: express.Request, res: express.Response) => {
-    res.status(503).json({
-      error:
-        '伺服器寫作引擎正在還原完整功能。請稍後再試，或在 GitHub Actions 成功後重新部署。',
-    });
-  };
-  app.post('/api/story/generate-stream', notReady);
-  app.post('/api/story/rewrite', notReady);
-  app.post('/api/story/extract-memory', notReady);
-  app.post('/api/story/check-consistency', notReady);
-  app.post('/api/story/deepen-character', notReady);
+  // Load full literary routes from the last known-good implementation module.
+  // This keeps server.ts small enough for mobile-only workflow updates.
+  try {
+    const mod = await import('./src/server/storyApi.js');
+    if (typeof mod.registerStoryApi === 'function') {
+      mod.registerStoryApi(app, {
+        MODEL_NAME,
+        LITERARY_SAFETY_SETTINGS,
+        getAiClient,
+        resolveRequestApiKey,
+        Type,
+        ThinkingLevel,
+      });
+    }
+  } catch (err) {
+    console.error('storyApi module missing, AI routes unavailable:', err);
+    const notReady = (_req: express.Request, res: express.Response) => {
+      res.status(503).json({
+        error:
+          '寫作引擎模組尚未就緒。請稍候完整還原，或重新部署後再試。',
+      });
+    };
+    app.post('/api/story/generate-stream', notReady);
+    app.post('/api/story/rewrite', notReady);
+    app.post('/api/story/extract-memory', notReady);
+    app.post('/api/story/check-consistency', notReady);
+    app.post('/api/story/deepen-character', notReady);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -100,12 +142,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
-    console.log(`Server listening on ${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Ink & Chiaroscuro server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+startServer();
